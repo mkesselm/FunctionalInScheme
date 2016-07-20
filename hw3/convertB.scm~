@@ -1,0 +1,117 @@
+;; read-file produces a list whose elements are the expressions in the file.
+ 
+(define (read-file)
+ (let ((expr (read)))
+ (if (eof-object? expr)
+ '()
+ (cons expr (read-file)))))
+ 
+;; Here we go: read in the database.
+ 
+(define source (with-input-from-file "units.dat" read-file))
+
+;; Process-design: example input (convert '(27.5 (furlong 1)(fortnight -1))'(mi 1)(hr -1)).
+;; 1) (furlong 1) --> ((201.168 m) 1), (fortnight -1) --> ((1209600 s) -1), (mi 1) --> ((1609.344 m) 1), (hr -1) --> ((3600 s) 1)
+;; 2) (201.168 ^ 1 m * 1609.344 ^ -1 m)(1209600 ^ -1 s * 3600 ^ 1 s)
+;; 3) (0.125)*(0.00297619)(mi 1)(hr -1)
+;; 4) 27*(0.000372024)(mi 1)(hr -1)
+;; 5) (0.010230655)(mi 1)(hr -1)
+;; Dev notes: convert fulongs per fortnight to (furlongs per miles) per (fortnights per hours) OR convert X Y to (X base-reduced)/(Y base-reduced)
+;; help functions to use:
+;;  convert-to-base
+;; car of quantity list returns quantity, cdr returns unit-list
+(define testfrom '(27.5 (furlong 1)(fortnight -1)))
+(define testto '((mi 1)(hr -1)))
+(define testlist (list '(furlong 1) '(fortnight -1) '(m 2)))
+(define testunit '(n 5))
+
+;; Raise the exponents in a unit-list to the value passed
+(define (pow exponent unit-list)
+  (if(null? unit-list)
+     '()
+     (cons (list (caar unit-list) (* exponent (cadar unit-list))) (pow exponent (cdr unit-list)))
+   )
+  )
+
+;;normalize a unit to its base unit-list with appropriately power exponents (e.g., (N 2) --> ((kg 2)(m 2)(s -4))
+(define (normalize-unit unit)
+  (if(assoc (car unit) source)
+    (cons (caadr (assoc (car unit) source)) (pow (cadr unit) (cdadr (assoc (car unit) source))))
+     (list 1 unit)
+   )
+  )
+
+;;normalize a unit-list of any size
+(define (normalize unit-list)
+  (if (null? unit-list)
+      '()
+   (cons (normalize-unit (car unit-list)) (normalize (cdr unit-list)))
+   )
+  )
+
+;;intersection and element-of? as per the text for unit-list validation checks
+(define (element-of? x set)
+  (cond ((null? set) #f)
+	((equal? x (car set)) #t)
+	(else (element-of? x (cdr set)))
+	)
+  )
+;;
+(define (intersection set1 set2)
+  (cond ((or (null? set1) (null? set2)) '())
+	((element-of? (car set1) set2)
+	 (cons (car set1) (intersection (cdr set1) set2)))
+	(else (intersection (cdr set1) (set2)))
+	)
+  )
+
+;;collect like terms' exponents and factors from a ql-list (list of quantity-lists)--evaluates to a quantity-list
+(define (collect term ql-list)
+  (let((seeder (list 1 (term 0)))
+       )
+   (define (collect-h term-h ql-list-h seed)
+      (let ((exponent-h (car (cdadr seed)))
+	    (factor-h (if (> (car (cdadr seed)) 0)
+			  (car seed)
+			  (/ 1 (car seed)))
+		      )
+	    (exponent (car (cdadar ql-list-h)))
+	    (factor (caar ql-list-h))
+	    (qlterm (caadar ql-list-h))
+	    )
+	(cond ((null? ql-list-h) seed)
+	      ((equal? term-h qlterm)(collect-h term-h (cdr ql-list)
+					    (list (* factor-h factor)
+						  term-h
+						   (+ exponent exponent-h))
+					    ))
+	      (else (collect term-h (cdr ql-list) seed)))
+	)
+      )
+  
+    (collect-h term ql-list seeder)
+
+    )
+  )
+
+;;validate terms from between two ql-lists
+(define (gather ql-list1 ql-list2)
+  (let ((element-unit (caadar quantity-list-list))
+	(exponent-unit (car (cdadar quantity-list-list)))
+	)
+    )
+  (cons (
+  )
+
+;;convert a quantity of units (quantity-list) to its equivalent quantity of units specified by unit-list
+;;conversions must share dimensionality (cannot convert lines to planes)
+(define (convert quantity-list unit-list)
+  (let ((x (car quantity-list))
+	(y (normalize (cdr quantity-list)))
+	(z (normalize unit-list))
+	)
+
+    (cons x (append y z))
+
+   )
+  )

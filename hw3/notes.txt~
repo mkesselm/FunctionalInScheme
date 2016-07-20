@@ -1,0 +1,47 @@
+DIRECT QUESTIONS
+
+1) Why are the quotes (in the query specification--e.g., (convert '(27.5 (furlong 1)(fortnight -1)) '((mi 1)(hr -1))) ) necessary?
+
+The quotes allow the units to be interpreted as literals rather than symbols.  Because we use the assoc function to match conversions, and furthermore we never define any units as symbols regardless, we need the query lists passed to contain a set of literal terms to match against the source.
+
+2) How does the program know how to perform the transformations?
+
+As with most programs in functional languages, the program knows how to perform the transformations by running a series of nested functions on the input (i.e., applying f(g(h(i(x)))) ).  In my particular implementation, my functions are nested as follows: scale quantity, on the (gather-factors, on the simplify, on the normalize, on the start-unit-list) (gather-factors, on the simplify, on the normalize, on the end-unit-list).  The specific implementation of these is further discussed below; however, it should be noted that because the quantity-list contains a number at the head rather than a unit, the function is structured to pull the start-unit-list from the cdr of the quantity-list, with the car being the first argument passed to the equivalent of the scaling outer function.
+
+3) How does it know how different units are related?
+
+This is actually a bit of a misnomer in my implementation (and I would imagine many others) as convert normalizes all units to some scaled base quantity-list (or list of quantity-lists, to be precise).  If a unit unknown to the conversion table is passed (including, ironically, the base meter-kilogram-seconds units themselves), that unit is counted as a base and converted into a quantity-list with a quantity of 1.  Because of this series of steps, convert really just runs a simple collate and airthmetic operation on these lists in MKS notation and so it really only ever "knows" how different units are related to MKS/themselves.  It does not know, for instance, how furlongs and miles directly relate.
+
+SOME TEST RESULTS
+
+(convert '(5 (joule 2)(n -3)(hr 1)) '((kg -1)(m 1)(sec 3))) --> (18000 (kg -1) (m 1) (sec 3))
+
+(convert '(5 (dabadoos -10)(joule 2)(n -3)(hr 1)) '((dabadoos -10)(kg -1)(m 1)(sec 3))) --> (18000 (dabadoos -10) (kg -1) (m 1) (sec 3))
+
+(convert '(10 (clopclop 1)(hr 2)) '((clopclop 1)(sec 2))) --> (36000 (clopclop 1) (sec 2))
+
+(convert '(5 (joule 2)(n -3)(hr 1)) '((kg -1)(m 1)(sec 2))) --> (conversion invalid--this is scheme, not a tardis, conversions between dimensions are impossible--you attempted: ((3600 (sec 3)) (1 (m 1)) (1 (kg -1))) to ((1 (sec 2)) (1 (m 1)) (1 (kg -1))))
+
+(convert '(12 (mi 1)(hr -1)) '((min 1)(mi -1))) --> (5.000000000000001 (min 1) (mi -1))
+
+(convert '(10 (mi 1)(hr -1)) '((min 1)(mi -1))) --> (6.000000000000002 (min 1) (mi -1))
+
+(convert '(5 (dabadoos -10)(joule 2)(n -3)(hr 1)) '((dabadoos 10)(kg 1)(m -1)(sec -3))) --> (1/18000 (dabadoos 10) (kg 1) (m -1) (sec -3))
+
+FURTHER DISCUSSION
+
+I approached the problem by reducing it to its nested functions (i.e., f(g(x))) and building out from g(x).  As such, first I designed a function to evaluate a unit-list to its consituent list of quantity-list (ql-list) base terms  (e.g., (min 1) --> (60 (sec 1)).  A challenging part of this is addressing novel units and units already in reduced form.  They are both treated equivalently, as they both evaluate to #f by the assoc on the lookup table.  As such, they are evaluated as quantity-lists with a quantity of 1.
+
+Another challenge was that assoc evaluates to a single quantity-list, so what we experience is that (n 1), for example, evaluates to (1 (kg 1)(m 1)(sec -1)) but something like (hr 1) evaluates to (3600 (sec 1)).  To overcome this, a list return of length 2 (e.g., the length of (3600 (sec 1)) ) is treated differently than a list return greater than 2 (e.g., (1 (kg 1)(m 1)(sec -1)).  This was a bit tricky so the code between normalize-unit and normalize could probably use a bit of refactoring--right now, normalize checks if the car is an evaluated normalize-unit is a list or a value; however, normalize-unit eventually evolved into ALWAYS returning a list of lists so the car will ALWAYS be a list--the consolidating into a ql-list occurs in the normalize-unit function.  With that said, it works, so I was hesitant to go back and putz with it as it basically amounts to an extra cond expression that is never even hit anyway.
+
+Also bundled into the normalization is an exponent-maintaining function.  This was left as a general function because it, as well as many other functions from this exercise, have a useful general form that, with minor tweaking, could be used later on different structures so I decided to leave them accessible for later tasks.  The power function is relatively straight-forward and just evaluates a new exponent and a unit-list to a list of identical units but with the new desired exponent.  In implementation, this is applied to a unit-list BEFORE passing it to another function (i.e., in f(g(x)) it is g(x)).
+
+Once normalization has occurred, there is still the possibility, and a likely one at that, of having multiples of the same unit.  Therefore, we pass this messy list into the simplify function, which evaluates to a distilled ql-list.  Where units are the same, the exponents are added, as expected, and the cofactors of negative exponentiated units are inverted (i.e., x --> 1/x) before the cofactors are multiplied for the resultant new simplified unit's factor.
+
+Simplify was implemented by another potentially useful general function that evaluates to a list of every unique member of a list.  It could be easily modified for other structures in the future and I anticipate using it again.  Simplify uses the list of uniques to collate all units into a ql-list in which each member quantity-list has a unique unit-list in it.
+
+Finally, as we approach the final outer function, we have one more interim step in the form of gather-factors.  This function takes a ql-list and evaluates to a value which is the product of all the quantities in the ql-list.  This is used to create the numerator and denominator for the calculation of the scaling factor in the actual convert function.  Again, with only a little tweaking, this is a useful general function that can be applied to a variety of data structures where we want some single amalgamated value resultant from the constituents of a list.
+
+The convert function itself uses an effective let() utilizing list-manipulating functions because it is not recursive and so (my theory on it is) there is no scoping confusion when the stack grows.  Because the scaling factor's numerator and denominator are evaluated before being passed to the convert, I structured the convert as a conditional.  Using two validation measures, I either convert as a rescaled value or convert as an inverted (and still rescaled) value (e.g., miles per hour -->  minutes per mile, as the tests above show).  Which conversion function is used depends on whether the simplified forms' unit lists are 1-to-1 or complete inversions of each other.  To check for 1-to-1, the function takes a ql-list1 and checks if each member of it is contained in another ql-list2, and then flips the lists and determines whether each member of ql-list2 is within ql-list1.  If each is fully contained in the other, then we know that they are equivalent sets.  Similarly, the inversion check runs this same process, however it first inverts the sign of the exponent in the unit it is checking.  Once again, these are potentially useful general functions at each stage of their evaluations(they actually run sequential checks of another function that checks simply if a unit or unit-inversion is a member of a list) so each stage of evaluation remains a general function for later usage.  Finally, if neither of the above conditions are met, convert returns an error message detailing the simplified base ql-lists for each unit-list passed to it, which should allow the user to determine where the conversion incompatibility arises.
+
+I also encountered some issues with let() that, in retrospect, make sense but resulted in my code being a bit less readable than preferred.  It appears that let() does not behave well with list operations such as car/cdr and recursions.  Because the vast bulk of this assignment involves list manipulations, the usefulness of the let() was severely diminished in this problem.  I encountered another unexpected hurdle in that, by abstracting a considerable amount of the math in the convert function itself, I easily lost track of the operations being performed and implementing the actual formula of the pace inversion become troublesome and took a lot of guess and check for me.

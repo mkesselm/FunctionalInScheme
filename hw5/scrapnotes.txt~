@@ -1,0 +1,25 @@
+action:
+        If strm is empty, just return the finite stream consisting of the digits in a-list.
+Otherwise:
+        If ((a-list has at least 1 digit) AND (m + (a % pow) < pow))
+        {
+        ;; Adding "m times strm" to a can’t possibly affect the leading
+        ;; element of a-list, so we are free to move the leading element of
+        ;; a-list to the output stream.
+                produce
+        }
+        else
+        {
+                consume
+        }
+produce:
+        ;; move the first element of a-list to the return stream
+        ;; and delete it from a-list.
+        Return what you get when you cons-stream the first element of a-list onto what you get when you call action recursively after replacing a by (a % pow) replacing a-list by (cdr a-list)
+        ;; could get leading 0’s here
+consume:
+        return the result of calling action recursively after 
+                replacing a by (10*a) + (m*(the first element of strm)) replacing
+                a-list by a represented as a string with 0’s prepended if needed to make its length > the length of the
+                original a-list.
+        replacing strm by (stream-cdr strm)

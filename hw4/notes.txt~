@@ -1,0 +1,180 @@
+PART I_
+
+While this part was relatively straight forward in design choice--we were basically told what to implement and, more or less, how--I did find it challenging to wrap my head around the procedure flow of the dispatch-premised wrappers.  I eventually got it, but it was anything but a smooth learning process for me.  A component of my difficulty was in the explanations I received from a large number of people couching the whole mechanism in terms of "returns"; however, my understand of functional languages is that there is "return".  There are symbol assignments and expression evaluations.
+
+So what we are doing with dispatch and procedures such as make-account, make-monitored, etc. is assign a partial expression to a symbol.  That symbol is not assigned anything evaluatable itself--it's the equivalent of saying "x" represents "My name is " in a sentence.  You then will pass your name to "x" which evaluates to a complete sentence--but there is no "return".  So, in my simple example, (x Micah) evaluates to "My name is Micah".  This makes much more intuitive sense to me as it maintains the functional paradigm of a calculus rather than borrowing terms and concepts from imperative languages.
+
+Beyond that, understanding the program flow of the dispatch procedures was challenging--in no small part due to the added difficulty of dealing with dropping syntactic sugar and inlining procedures.  One last thing before moving on to discussion of PART II, I found the inlining concept odd and difficult to wrap my head around because, in my mind, inlining would entail dropping even the lambdas and maintaining a procedure that more directly evaluates a list of arguments.  Part of this is my intuition that any set of nested functions can be described as a single larger function.  I think this might relate somewhat to the use of parentheses, too, though.  To "truly" inline as I am conceiving would have us, say, (define acc (make-account 100)) and then simply run (acc 'deposit 50) rather than having to bring in extra nested parentheses.  This expands to (make-account 100 'deposit 50), while the directed implementation expands to ((make-account 100 'deposit) 50).  This entire discussion may simply be a mere matter of preference, though, so I will move on to PART II.
+
+PART II_
+
+This part was certainly more challenging and a lot more fun.  Due to time constraints, I did not implement the naive approach and instead opted to immediately tackle the problem.  What results is very messy looking, albeit commented, code that still fulfills the specification because it is entirely encased within a (begin ).  My implementation ended up becoming an implementation of Bellman Ford because it maintains both a recursive and a dynamic component (though the recursion is moved to a few different spots than directly in the probing function)--the nice thing is that it allows for negative weights with no modifications and, with very minor tweaks, can detect cycles.  It is also a really fun algorithm.  Note that it should work with any similarly formatted data that has a 'start node--the 'end node is optional (I *think*...I didn't really thoroughly investigate this), it also slightly differs from the assignment sheet description in that my cost is passed a target value and calculates the shortest path from 'start--it is a minor tweak to process a cost that takes any origin node and calculates the shortest path to 'end but my implementation as is seems to fulfill the specifications so I left it.  To be clear, there are weaknesses to this approach--while it is generally faster, if it is interrupted before full iterations, it is very possibly for it to return arbitrary costs.  It also must complete a full sweep every iteration.  I think it might be stronger for streaming data into a graph, however, as new entrants can get caught up in a sweep and their bids should eventually percolate through the entire graph after enough iterations (this could even be optimized by checking where, relative to the start node, they are inserted).  It isn't relevant to the homework, but I think it's an interesting observation.
+
+A quick list of the components I put together to process:
+datatable that is 2d lookup table mapped to the graph
+pathmap that is 1d lookup table mapped to nodes and a pair of their cost-to-'start and predecessor
+a simple list of all nodes
+hello-neighbor procedure to retrieve neighbor nodes (or child nodes in this case)
+massage-node that relaxes all edges to neighbor nodes (I will explain what this means momentarily)
+relax-edges that runs massage node on all viable nodes in the graph
+sauna that will sequentially run relax-edges however many times is requested--defaulted to run # of nodes - 1 times as implemented (I will elaborate in a bit)
+backtrace that simply steps back from the target node, evaluating to a cost and map of the shortest path from 'start to target
+
+Some quick explanations:
+
+When I say I relax edges ON a node, I mean that I look at a node's neighbor, calculate a "bid" to that node and compare that bid to their current cost to 'start--when that bid is lower than the neighbor's current cost, that neighbor's predecessor is reassigned to the current node and its cost is set to be the bid offered.
+
+The reason the number of times I run relax-edges is # of total nodes - 1 is that this will maximally relax the edges in graphs that do not have cycles.  Basically, at every iteration it adds new viable paths and their associated costs to the list of paths travelled so far.  As you expand out, more paths are optimized as new paths are uncovered but on each iteration, you aren't necessarily guaranteed to find all paths to the particular nodes you "unlock" as there might be more circuitous ones down the line.  However, because all the nodes are connected, once you have run through this as many times as there are nodes, you are ensured to have unlocked everything, even if you were only able to unlock nodes in a straight line (so, potentially, you are unlocking one new node and set of costs per iteration).  We can safely ignore one iteration because, we already know the cost of at least one target node--that is, the cost of 'start to 'start is always 0 (I guess it doesn't have to be, but, generally speaking, that cost should be a static, immediately known value before mapping).  If we were to add one more iteration, this would actually give us cycle detection (if we detect changes in the costs at this point, there is guaranteed to be a negative cycle--I think we could even check for positive cycles if we track bids as well since at this point there should be no novel bids).
+
+DESIGN
+
+My data table is crafted pretty straight-forwardly.  I simply recurse down the data list brought in, using the insert! procedure introduced in the textbook to build up the table.
+
+To build my cost table, I recurse down the list again, and enter a node into my table as a key, initializing the pair it maintains as a value to "-" for the cost and "unexplored" for the predecessor.  At first I recursed down the "top" of the data table, however, that only maps parent nodes and so it misses some (though, since a childless node that is not our target node is useless to us, we can still maintain the specifications of the assignment by doing it that way--however, it would become impossible to choose ANY node in the graph as a target to calculate cost to then).
+
+The tricky part here, which is also where I would need to start modifying should I change it to map FROM any source to 'end, rather than mapping from 'start TO any source, is ensuring that the 'start node is the first node in the pathmap.  This seemingly small detail is very important for the algorithm to work as the only known cost to source at the first iteration is the cost of 'start to 'start and therefore bids build out from that point--without it, we can never build bids.  What I did is that I had the procedure initially take in an arbitrary dummy argument that carries along down the recursion--once it sees 'start, that argument takes the dummy's place down the line until we hit the base case, at which point the dummy is inserted at the head of pathmap.
+
+I also ended up creating a simple list of all nodes as it was easier to recurse down than using the table.  This simply evaluated a list of all nodes at the "top" of the pathmap, guaranteeing us a list of all unique nodes in the graph.
+
+With the data sources complete, I implemented a procedure called hello-neighbor that takes a node and finds all children of that node by simply returning the cdr of the lookup in the data table, which is simply a list of lists itself--allowing me to borrow a bit of design from my implementations in the last assignment.
+
+The most critical part of my implementation, and surely the most opaque in implementation, is my massage-node procedure.  This takes a list of child nodes, which we can calculate as above, and the parent node.  It recurses down the list of neighbors, creating a bid from the sum of its own cost to 'start and the cost of the connecting edge, as found in the entry in the neighbors list.  When that bid is less than the node it is currently bidding to, the child node's entry in pathmap is updated, its value now holding the lower bid and the node being "massaged".  Some notes about the implementation:
+- if it is bidding to a node that has not been probed yet (whose pathmap value is (- 'unexplored)), I automatically accept the bid as this helps avoid complications with type comparisons down the line
+- a node that is itself unexplored, cannot be massaged without returning errors, as I moved this consideration to the procedure calling on massage-node--consider that it would not make sense for it to offer a bid anyway, as it does not know ANY path to the 'start and so it cannot possibly offer a better bid than what it neighbor already has
+- I'm sure I could implement this again, but it is a wriggly implementation given the other syntax issues I constantly face with scheme--I am literally afraid to touch this procedure again because, as it is, it works very well and I don't dare screw anything up
+
+The relax-edges procedure is simply a recursive calling of massage-node on each valid node in the simple list discussed above (called quicklist in my implementation).  At first I attempted to recurse down the top of pathmap, but because it is a table, annoying little issues kept showing up, so I just said screw it and used a fast and simple list which made it much faster and easier to code.  Before running massage-node on a list element, I check that element in the pathmap (through a lookup1d procedure) and see if it is unexplored or has any children.  Where either of those are true, I simply move on down the recursion as the node either is fully mapped, or has no bid to offer other nodes yet.
+
+
+TEST OUTPUT -- run on umb servers
+
+*************************SHORTEST PATH************************************
+mkesselm@itserver6:~/cs450/hw4$ scheme < path.scm
+Welcome to UMB Scheme, version 3.2  Copyright (c) 1988,1996 William R Campbell.
+UMB Scheme comes with ABSOLUTELY NO WARRANTY. This is free software and
+you are free to redistribute it under certain conditions.
+See the UMB Scheme Release Notes for details. Type Control-d to exit.
+
+Loading /home/offner/tools/lib/prelude.scheme...
+
+==> (169 start b2 b9 b3 b5 b19 end)
+()
+
+(cost 'b99)
+
+Error: Please choose a target node that is a member of the graph.
+
+(cost 'b17)
+
+Error: It looks like this node has no inbound edges! Please choose a different node.
+
+(cost 'end)
+
+(169 start b2 b9 b3 b5 b19 end)
+
+(cost 'start)
+
+(0 start)
+
+**************************ASanswers******************************************
+
+(define acc-lambda (make-account-lambda 100))
+
+acc-lambda
+
+((acc-lambda 'withdraw) 50)
+
+50
+((acc-lambda 'deposit) 50)
+
+100
+
+((acc-lambda 'withdraw) 150)
+
+"Insufficient funds"
+
+(define acc-inline (make-account-inline 100))
+
+acc-inline
+
+((acc-inline 'withdraw) 50)
+
+50
+
+((acc-inline 'deposit) 50)
+
+100
+
+((acc-inline 'withdraw) 150)
+
+"Insufficient funds"
+
+(define acc-factored (make-account-inline-factored 100))
+
+acc-factored
+
+((acc-factored 'deposit) 50)
+
+150
+
+((acc-factored 'withdraw) 200)
+
+"Insufficient funds"
+
+((acc-factored 'withdraw) 50)
+
+100
+
+(define acc-pw (make-pw-account 100 'hw4))
+
+acc-pw
+
+((acc-pw 'deposit 'hw4) 50)
+
+Error: Password incorrect.
+
+Reset (Use Control-d to quit UMB Scheme)
+
+((acc-pw 'hw4 'deposit) 50)
+
+150
+
+((acc-pw 'hw4 'withdraw) 50)
+
+100
+
+((acc-pw 'hw4 'withdraw) 200)
+
+"Insufficient funds"
+
+(define s (make-monitored sqrt))
+
+s
+
+(s 100)
+
+10.0
+
+(s 4)
+
+2.0
+
+(s 'how-many-calls?)
+
+2
+
+(s 'reset-count)
+
+0
+
+(s 'how-many-calls?)
+
+0
+
+(s 10)
+
+3.16227766016838
+
+(s 'how-many-calls?)
+
+1

@@ -1,0 +1,160 @@
+Welcome to UMB Scheme, version 3.2  Copyright (c) 1988,1996 William R Campbell.
+UMB Scheme comes with ABSOLUTELY NO WARRANTY. This is free software and
+you are free to redistribute it under certain conditions.
+See the UMB Scheme Release Notes for details. Type Control-d to exit.
+
+Loading /home/offner/tools/lib/prelude.scheme...
+
+==> 
+is-list?
+==> 
+a
+==> 
+b
+==> 
+c
+==> 
+#t
+==> 
+#f
+==> 
+#t
+==> 
+(1 2 3)
+==> 
+myreverse
+==> 
+b
+==> 
+(3 2 1)
+==> 
+same-parity
+==> 
+a
+==> 
+b
+==> 
+c
+==> 
+(5 3 1)
+==> 
+c
+==> 
+(6 4 2)
+==> 
+square-list
+==> 
+a
+==> 
+(1 4 9 16)
+==> 
+square-list
+==> 
+a
+==> 
+(1 4 9 16)
+==> 
+my-for-each
+==> 
+testpred
+==> 
+displaypred
+==> 1
+2
+3
+4
+
+==> 
+my-deep-reverse
+==> 
+a
+==> 
+(1 2 (quote (3 4)) 5)
+==> 
+b
+==> 
+(5 ((4 3) quote) 2 1)
+==> 
+my-equal
+==> 
+a
+==> 
+b
+==> 
+c
+==> 
+d
+==> 
+(1 2 3)
+==> 
+(1 2 3)
+==> 
+#t
+==> 
+(1 2 3)
+==> 
+(1 2)
+==> 
+#f
+==> 
+(1 2 3)
+==> 
+(1 2)
+==> 
+#f
+==> 
+()
+==> 
+()
+==> 
+#t
+==> 
+(1 2 3)
+==> 
+()
+==> 
+#f
+==> 
+()
+==> 
+(1 2 3)
+==> 
+#f
+==> 
+#t
+==> GCing... 565416 bytes collected, 234568 bytes used, heapsize 800000 bytes.
+
+every?
+==> 
+#f
+==> 
+#t
+==> 
+#f
+==> 
+memq-b
+==> 
+unordered-union-set
+==> 
+#t
+==> 
+a
+==> 
+(1 0 2 4)
+==> 
+ordered-union-set
+==> 
+a
+==> 
+(1 2 3 4 5)
+==> 
+remove-val
+==> 
+a
+==> 
+(4 5)
+==> 
+a
+==> 
+(2 4)
+==> 

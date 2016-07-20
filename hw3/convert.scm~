@@ -1,0 +1,196 @@
+;; read-file produces a list whose elements are the expressions in the file.
+ 
+(define (read-file)
+ (let ((expr (read)))
+ (if (eof-object? expr)
+ '()
+ (cons expr (read-file)))))
+ 
+;; Here we go: read in the database.
+ 
+(define source (with-input-from-file "units.dat" read-file))
+
+;; Process-design: example input (convert '(27.5 (furlong 1)(fortnight -1))'(mi 1)(hr -1)).
+;; 1) (furlong 1) --> ((201.168 m) 1), (fortnight -1) --> ((1209600 s) -1), (mi 1) --> ((1609.344 m) 1), (hr -1) --> ((3600 s) 1)
+;; 2) (201.168 ^ 1 m * 1609.344 ^ -1 m)(1209600 ^ -1 s * 3600 ^ 1 s)
+;; 3) (0.125)*(0.00297619)(mi 1)(hr -1)
+;; 4) 27*(0.000372024)(mi 1)(hr -1)
+;; 5) (0.010230655)(mi 1)(hr -1)
+;; Dev notes: convert fulongs per fortnight to (furlongs per miles) per (fortnights per hours) OR convert X Y to (X base-reduced)/(Y base-reduced)
+;; help functions to use:
+;;  convert-to-base
+;; car of quantity list returns quantity, cdr returns unit-list
+(define testfrom '(27.5 (furlong 1)(fortnight -1)))
+(define testto '((mi 1)(hr -1)))
+(define testlist (list '(furlong 1) '(fortnight -1) '(m 2)))
+(define testunit '(n 5))
+(define testseed (list 1 (list 'm 0)))
+
+;; Raise the exponents in a unit-list to the value passed
+(define (pow exponent unit-list)
+  (if(null? unit-list)
+     '()
+     (cons (list (caar unit-list) (* exponent (cadar unit-list))) (pow exponent (cdr unit-list)))
+   )
+  )
+
+;;for convenience and clarity later
+(define (cadadar x) (car (cdadar x)))
+
+;;normalize a unit to its base quantity-list with appropriately powered exponents formatted as a ql-list (list of quantity-lists)(e.g., (N 2) --> (1 (kg 2) 1 (m 2) 1 (s -4))
+(define (normalize-unit unit)
+  (let((new-exponent (cadr unit))
+      ; (base-list (cdadr (assoc (car unit) source)))--not valid for some reason
+       )
+    (define (format-quantity-list lead-quantity quantity-list-tail)
+      (if (null? quantity-list-tail)
+	  '()
+	  (cons (list lead-quantity (car quantity-list-tail))
+		(format-quantity-list 1 (cdr quantity-list-tail)))
+	  )
+      )
+    (if(assoc (car unit) source)
+       (if (> 2 (length (cdadr (assoc (car unit) source))))
+	   (cons (caadr (assoc (car unit) source))
+		       (pow new-exponent (cdadr (assoc (car unit) source))))
+	   (format-quantity-list (caadr (assoc (car unit) source))
+				 (pow new-exponent (cdadr (assoc (car unit) source)))))
+       (list 1 unit)
+       )
+    )
+  )
+
+;;normalize a unit-list of any size--evaluates to a ql-list (list of quantity-lists)
+(define (normalize unit-list)
+  (cond
+   ((null? unit-list) '())
+   ((list? (car (normalize-unit (car unit-list))))
+    (append (normalize-unit (car unit-list)) (normalize (cdr unit-list))))
+   (else (cons (normalize-unit (car unit-list)) (normalize (cdr unit-list))))
+   )
+  )
+
+(define normedtest (normalize testlist))
+
+;;element-of? as per the text for later functions
+(define (element-of? x set)
+  (cond ((null? set) #f)
+	((equal? x (car set)) #t)
+	(else (element-of? x (cdr set)))
+	)
+  )
+
+;;collect like terms' exponents and factors from a ql-list (list of quantity-lists)--evaluates to a quantity-list
+;;this function looks ridiculously ugly because apparently let statements simply do not behave well with recursive list--my guess is that it has something to do with variable scope and a let maintaining down-scope.
+(define (collect term ql-list) 
+   (define (collect-h term-h ql-list-h seed)
+     (cond
+      ((null? ql-list-h) seed)
+      ((equal? term-h (caadar ql-list-h))
+       (collect-h term-h
+		  (cdr ql-list-h)
+		  (list (* (if (> (cadadr seed) 0) (car seed) (/ 1 (car seed))) (caar ql-list-h))
+			(list term-h
+			      (+ (cadadar ql-list-h) (cadadr seed))))
+		  ))
+      (else (collect-h term-h (cdr ql-list-h) seed)))
+     )   
+   (collect-h term ql-list (list 1 (list term 0)))
+   )
+
+;;make a simple list of each unique unit type in a ql-list--for use with simplify
+(define (list-units ql-list)
+  (define (list-units-h ql-list-h seed)
+    (cond
+     ((null? ql-list-h) seed)
+     ((element-of? (caadar ql-list-h) seed) (list-units-h (cdr ql-list-h) seed))
+     (else (list-units-h (cdr ql-list-h) (cons (caadar ql-list-h) seed)))
+     )
+    )
+  (list-units-h ql-list (list (caadar ql-list)))
+  )
+
+;;simplify base unit ql-list
+(define (simplify ql-list)
+  (define (simplify-h ql-list-h units-list)
+    (if (null? units-list)
+	'()
+	(cons (collect (car units-list) ql-list-h) (simplify-h ql-list-h (cdr units-list)))
+	)
+    )
+  (simplify-h ql-list (list-units ql-list))
+  )
+
+;;specialized element-of? form for ql-lists--returns true if the unit is a member of the ql-list; false otherwise
+(define (base-element-of? unit ql-list)
+  (cond
+   ((null? ql-list) #f)
+   ((equal? (cadar ql-list) unit) #t)
+   (else (base-element-of? unit (cdr ql-list)))
+   )
+  )
+
+;;validate ql-list terms to ensure that the conversion is valid--no points to lines, lines to planes, or planes to spheres, etc.  Broken up into two general functions as the helper functions seems like it would be useful outside of valid? valid-on? checks that ql-list1 is contained entirely in ql-list2 (i.e., ql-list2 may contain ql-list + some more but never less than ql-list1).  These will work with any lists of the same kind.
+
+(define (valid-on? ql-list1 ql-list2)
+  (cond
+   ((null? ql-list1) #t)
+   ((base-element-of? (cadar ql-list1) ql-list2) (valid-on? (cdr ql-list1) ql-list2))
+   (else #f)
+   )
+  )
+
+(define (valid? ql-list1 ql-list2) (AND (valid-on? ql-list1 ql-list2)(valid-on? ql-list2 ql-list1)))
+
+;;gather the factors of a ql-list
+(define (gather-factors ql-list)
+  (cond
+   ((null? ql-list) 1)
+   ((> 0 (cadadar ql-list)) (* (/ 1 (caar ql-list)) (gather-factors (cdr ql-list))))
+   (else (* (caar ql-list) (gather-factors (cdr ql-list))))
+   )
+  )
+
+;;check if ql-list1 contains an inversion of ql-list2 (e.g., '((3600 (sec 1))) is an inversion of '((3600 (sec -1)))
+(define (inversion-of? ql-list1 ql-list2)
+  (cond
+   ((null? ql-list1) #t)
+   ((base-element-of? (list (caadar ql-list1) (* (cadadar ql-list1) -1)) ql-list2)
+    (inversion-of? (cdr ql-list1) ql-list2))
+   (else #f)
+   )
+  )
+
+(define (inversions? ql-list1 ql-list2) (AND(inversion-of? ql-list1 ql-list2)
+					    (inversion-of? ql-list2 ql-list1)))
+  
+;;convert a quantity of units (quantity-list) to its equivalent quantity of units specified by unit-list
+;;conversions must share dimensionality (cannot convert lines to planes)
+(define (convert quantity-list unit-list)
+  (let ((quantity (car quantity-list))
+	(numerator (gather-factors (simplify (normalize (cdr quantity-list)))))
+	(denominator (gather-factors (simplify (normalize unit-list))))
+	(baselist1 (simplify (normalize (cdr quantity-list))))
+	(baselist2 (simplify (normalize unit-list))))
+    
+    (cond
+     ((valid? baselist1 baselist2) (cons (* quantity (/ numerator denominator)) unit-list))
+     ((inversions? baselist1 baselist2) (cons (/ 1 (* quantity denominator numerator)) unit-list))
+     (else (list 'conversion
+	    'invalid--this
+	    'is
+	    'scheme,
+	    'not
+	    'a
+	    'TARDIS,
+	    'conversions
+	    'between
+	    'dimensions
+	    'are
+	    'impossible--you
+	    'attempted:
+	    baselist1
+	    'to
+	    baselist2)))
+    )
+  )

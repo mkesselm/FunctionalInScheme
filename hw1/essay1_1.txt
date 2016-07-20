@@ -1,0 +1,7 @@
+﻿As was stated in class, Scheme simply treats data differently than other languages.  Where Java and even C work like boxes being fed data, Scheme seems to me to be more analogous to creating a pipe to contour data from as it flows from entry to exit.  On the other hand, so far there is some similarity to using anonymous functions in Java or lambda arguments in C++.
+
+The quirkiness of the two interpreter methods was particularly surprising; however, I would imagine that normal-order evaluation is better for training and/or checking for bugs due to its complete expansion of all expressions prior to evaluating them.
+
+When I type '+' at the Scheme prompt I receive the message “#[arity-dispatched-procedure 13]” which, I believe, is the error returned for not placing this particular primitive expression in parentheses as I receive a similar error, albeit with a different number, for the other primitive expressions (i.e., '/', '*', etc.).
+
+So far, the unique way scheme treats data is the highlight of the language for me.  On the other hand, I imagine that programming in Scheme can very quickly become incredibly convoluted and difficult to parse if good practices aren't maintained (and even then, it still strikes me as a bit convoluted looking when anything of any particular interest or complexity is performed).

@@ -1,0 +1,66 @@
+(define recurse (lambda (x) (if (> 3 x)
+			       x
+			       (+ (recurse (- x 1))
+				  (* 2
+				     (recurse (- x 2))
+				     )
+				  (* 3
+				     (recurse (- x 3))
+				     )
+				  )
+			       )
+			)
+  )
+(recurse 2)
+(recurse 4)
+
+(define (fn n)
+  (fn-iter 0 1 n)
+  )
+
+(define (fn-iter product count n)
+  (if (= count n)
+      (product)
+      (fn-iter (+ product
+		  (fn-iter product (- count 1) n)
+		  (* 2
+		     (fn-iter product (- count 2) n))
+		  (* 3
+		     (fn-iter product (- count 3) n)))
+	       (+ count 1)
+	       n
+	       )
+      )
+  )
+
+(fn 2)
+(fn 4)
+
+(define (p r e)
+  (if(AND (= r 0) (= e 0))
+     1
+     (
+      (/ (fac r)
+	 (* (fac e)
+	    (fac (- r e)
+		 )
+	    )
+	 )
+      )
+     )
+  )
+  
+(define (fac x)
+  (if (= x 1)
+      1
+      (* x
+	 (fac (- x
+		 1)
+	      )
+	 )
+      )
+  )
+
+(p 0 0)
+(p 4 2)
+(p 2 1)

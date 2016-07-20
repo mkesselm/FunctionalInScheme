@@ -1,0 +1,66 @@
+1_
+
+It's hard to simply dive into a language (which s450 amounts to) and just "find"
+the things that are "there".  The version of s450 we start with seems to have
+the core of what we have grown accustomed to in the normal version of umb
+scheme; however, some items in the prelude are not present, such as cadr, cddr,
+etc.  Lists, quote-lists, conditionals and more, though, do seem to be present.
+
+Surely, more is missing, and I am confident I'll unconver it as I dive in.
+
+2_
+
+Implementing the data-driven xeval was harder than I anticipated if only because
+of the combination of a typo that wasted literally over 4 hours of my time and
+that it took me a very long time to comprehend that I needed the items stored to
+ be a lambda on exp and env so that they would parse it normally.  Once I
+ understood this, it was very fast, but that small detail brought me to a
+ complete stop for an exasperatingly long time.
+
+The install-special-form procedure simply allows a special form to be added to
+the table from umb scheme.  I at first thought this had to be called from inside
+s450 rather than in the umb scheme environment, however, after discussions with 
+a few classmates, I am under the impression it is only expected to be called in 
+umb scheme.  I do think that it could be implemented as a callable item inside
+s450 itself by inserting it into the special form table but, because of time, I 
+decided not to pursue this (though, if through some miracle I complete the
+entirety of the assignment by the deadline, I will revisit this).
+
+As you can see from loading my s450, it inserts eval-load before anything is
+done by running install-special-form on it.
+
+3_
+
+This was not too bad. Originally I had thought just to check if an exp was
+passed with nothing but a type-of (i.e., without arguments) but that did not
+seem to work. I then traced the error message when calling, for example, if.
+That lead me to conclude that the issue had to be rooted in the variable check.
+So I implemented a check when variable? is true that simply peeks to see if the
+expression is already in the eval-table. It took me a while to realize that I
+needed to simply run a lookup-action on exp rather than on type-of exp. I am
+still not really sure why this is the case as it seems to me that in the case of
+passing "if" and nothing else, they should be equivalent, but the small change
+allowed my message generator to work.
+
+4_
+
+To ensure that special forms are not over-written through defines or set!s I
+implemented a check in eval-assignment and eval-definition that simply runs
+lookup-action on the intended symbol. If this returns a value, an error is
+output to the user. Otherwise, the assignments and defines carry on as normal.
+
+5_
+
+For the first two special forms (defined? and locally-defined?) I used the
+procedures for define as it seemed reasonable to me that those would necessarily
+need to include some sort of check for local definitions. This made it so that
+checking for locally-defined was actually easier than the envinroment defined
+check since the latter required me to also include an additional check when the 
+end of the currently considered frame's list of variables cropped up. At this
+point, I simply check if there are any more frames and, if not, return #f;
+however, if there are more frames to check, I recurse down that list of frames,
+inspecting their definitions along the way.
+
+The second two were structured around a similar basis; however, I improved the
+environment version to recursively call the local version on each contained
+frame. 

@@ -1,0 +1,87 @@
+1_
+The display function was relatively straight forward as it simply required evaluating the stream-car, displaying it, and then moving on down the stream by recursing on the cdr, however passing in a count - 1 as the display count in the recursion.
+
+2_
+ 2.1: The ordering of the two is somewhat counter to the way in which they "work out".  Because stream-map takes in a collection of arguments, we need the cons in the last two lines to gather the next item from each of the streams passed to it and place it into a gathered argument to pass to the next recursion of stream-map, which simply applies the procedure passed.  So what happens in the case of, say, a + being stream-mapped to s1 s2 s3 is that the recursion will gather the next item of the streams into a an argument along with the plus, creating something like (+ car-s1 car-s2 car-s3) and then run stream-map on that, evaluating to the proper output and moving on to the next recursion.  Without this, I don't think we're able to get all of the streams passed, and that is why, with the changes provided, the output stream eventually errors out.
+ 
+  2.2: This actually seems to work and it does make sense to me that it works.  Basically, it seems that instead of grouping the procedure with the argstreams, we only group the argstreams and kind of take the procedure being mapped for granted.  Both ways evaluate to the same final (for the recursion) expression being evaluated--that is, both result in apply stream-map proc car-s1 car-s2 car-s3.
+
+3_
+This was fairly straight forward.  Ones simply does a kind of loop on itself, always adding one more 1 onto the end for each recursion.  Integers also does a kind of loop on itself, however, each recursion will add the top of each of the respective streams to each other.  Because ones always is just streaming '1', and Integers first streams a 1 as its top (and so, then a 2, and therefor then a 3, and then a 4, and so on), Integers will always increment at every recursion.
+
+4_
+ 4.1:
+ 87 + 69 >= 100; consume
+        (85)            9038    (8 0 3 8)       1000    (3 6 9 1 7)
+ 87 + 38 < 100; produce
+        (859)           038     (0 3 8)         100     (3 6 9 1 7)
+ 87 + 59 >= 100; consume
+        (859)           0641    (0 6 4 1)       1000    (6 9 1 7)
+ 87 + 641 < 1000; produce
+        (8590)          641     (6 4 1)         100     (6 9 1 7)
+ 87 + 41 >= 100; consume
+        (8590)          6932    (6 9 3 2)       1000    (9 1 7)
+ 87 + 932 >= 1000; consume
+        (8590)          70103   (7 0 1 0 3)     10000   (1 7)
+ 87 + 103 < 10000; produce
+        (85907)         0103    (0 1 0 3)       1000    (1 7)
+ 87 + 103 < 1000; produce
+        (859070)        103     (1 0 3)         100     (1 7)
+ 87 + 3 < 100; produce
+        (8590701)       3       (0 3)           10      (1 7)
+ 87 + 3 >= 10; consume
+        (8590701)       117     (1 1 7)         100     (7)
+ 87 + 17 >= 100; consume
+        (8590701)       1779    (1 7 7 9)       1000    ()
+ (8590701)
+
+ Discussion: There was not a whole lot of design decision that went into this--it was mostly a matter of following diections.  I was able to keep everything mostly enclosed in the final procedure; however, the string-integer manipulations I left as general functions as I suspected (incorrectly) that I might need them later in the pi stream implementation.  To retrieve the correct numerical value from a numeric char, I used the native function and offset by 48 to compensate for the ascii output.
+
+5_
+ 5.1: 2 + 1/3(3) = 3
+      2 + 1/3(2 + 2/5(3)) = 3.0666...
+      2 + 1/3(2 + 2/5(2 + 3/7(3))) = 3.104761905
+      2 + 1/3(2 + 2/5(2 + 3/7(2 + 4/9(3)))) = 3.123809524
+      2 + 1/3(2 + 2/5(2 + 3/7(2 + 4/9(2 + 5/11(3)))))) = 3.133044733
+      2 + 1/3(2 + 2/5(2 + 3/7(2 + 4/9(2 + 5/11(2 + 6/13(3)))))) = 3.137484737
+      
+      I am unsure as the calculation is incredibly tedious and my calculator actually craps out on me by the time I get to the fifth iteration, but I suspect that the recursive stream outputs a new integer value of pi at the same level as the above iteration resolves to an equivalent accuracy--i.e., we immediately get 3, it takes two two more recursions/iterations to retrieve the 1 that follows that 3.  I believe at level 6 or 7 we will see the expected 4 in both recursion and iterative version as well.
+      
+      This makes sense as the point of the streaming method seems to be increasing the resolution of the equation, but also lopping off now irrelevant digits with the offset matrix provided.  To me, this shows that the real ingenious part of the algorithm we were instructed to implement is in the offset matrix and not the streaming of a series computation.
+      
+ 5.2: (0 1 1 3)
+
+ 5.3:
+        0. Using the mapping provided by the text as axiom, we map a(x) to A and b(x) to B
+        1. A = [ a11 a12 a21 a22]; B = [b11 b12 b21 b22]
+        2. Therefore, by matrix algebra, A*B =
+        [(a11b11 + a12b21) (a11b12 + a12b22)
+         (a21b11 + a22b21) (a21b22 + a22b22)]
+        
+        3. a(x) = (a11x + a12)/(a21x + a22); b(x) = (b11x + b12)/(b21x + b22),
+        where a's and b's are constants.
+        4. Therefore, by....Calc 1/pre-calc, a(b(x)) =
+        (a11([b11x + b12]/[b21x + b22]) + a12) / 
+        (a21([b11x + b12]/[b21x + b22]) + a22) =
+        
+        (a11[b11x + b12] + a12[b21x + b22]) /
+        (a21[b11x + b12] + a22[b21x + b22]) =
+        
+        (a11b11x + a11b12 + a12b21x + a12b22) /
+        (a21b11x + a21b12 + a22b12x + a22b22) =
+        
+        [(a11b11 + a12b21)x + (a11b12 + a12b22)] /
+        [(a21b11 + a22b12)x + (a21b12 + a22b22)]
+        
+        5. Applying to (4) the mapping provided by the text, a(b(x)) maps to:
+        [(a11b11 + a12b21) (a11b12 + a12b22)
+         (a21b11 + a22b21) (a21b22 + a22b22)]
+         
+        6. (2) = (5), therefore A*B = a(b(x)), where a(x) is mapped to A and b(x) is mapped to B.
+        
+ Discussion: The math, at the concrete level, still really eludes me for this but I think I understand the abstracted level of it.  Basically, we seem to be "tightening" up the series we are evaluating for pi; however, because we are streaming the value left to right, as our series increases in accuracy, we are able to "lock in" values, similarly to how we stream a multiplication action in 4.  Because we have locked in a digit, though, we know longer need to evaluate that "side" of the calculation and so we run a transformation on the matrix a to "shift" the calculation to the appropriate decimal.  The reason we determine that accuracy by a check on the evaluation of the LFT on 3 and 4, is that, as we increase accuracy, 3 and 4 should evaluate to a closer and closer value--that is, the front-running digits of 3 and 4 are going to be increasingly identical as our series carries on since they both evaluate to pi at infinity.  By lopping off the front-runners every time 3 and 4 match at the series' instant we happen to be evaluating, we are guaranteed to be streaming out the correct value whenever we find it.
+ 
+ As I said above, while the pi stream is interesting in and of itself, the real "weird" math in this is that the (10 -10*n 0 1) offset matrix works at every point along the series.  This is where I get really lost.  The rest of it, while I had difficulty understanding at first, seems to be simply "compressing" the expanded series into a single LFT at every recursion, carrying all those left-side matrix multiplications along, which aligns with the incremental expansion shown above in 5.1.  I say "simply" here, understanding that hindsight is 20/20 and, though it now seems an obvious method to "collect" the series' LFTs, it is a pretty slick way to evaluate a series as a stream that matches the value at the limit.  I imagine this same method could be used for limits other than infinity as well.
+ 
+ As for my implementation, I had a lot of trouble getting let statements to work in pi-stream, so I ended up not using them at all.  Thankfully the procedures relative straight forwardness allowed the code to remain fairly clear without using lets.  I could certainly improve it more by using a cleaner function to find the quotient and, in fact, in doing hand-written tests of the algorithm after implementing (I know, weird and a bit backward, but whatever....this was my process), I used such a procedure to quickly find the internal quotient of a LFT passed to it.
+

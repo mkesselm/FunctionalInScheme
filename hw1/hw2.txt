@@ -1,0 +1,97 @@
+MIT/GNU Scheme running under GNU/Linux
+Type `^C' (control-C) followed by `H' to obtain information about interrupts.
+
+Copyright (C) 2011 Massachusetts Institute of Technology
+This is free software; see the source for copying conditions. There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+Image saved on Saturday January 31, 2015 at 1:48:57 PM
+  Release 9.1.1     || Microcode 15.3 || Runtime 15.7 || SF 4.41
+  LIAR/x86-64 4.118 || Edwin 3.116
+
+1 ]=> (define recurse (lambda (x) (if (> 3 x)
+			       x
+			       (+ (recurse (- x 1))
+				  (* 2
+				     (recurse (- x 2))
+				     )
+				  (* 3
+				     (recurse (- x 3))
+				     )
+				  )
+			       )
+			)
+  )
+;Value: recurse
+
+1 ]=> (recurse 2)
+;Value: 2
+
+1 ]=> (recurse 4)
+;Value: 11
+
+1 ]=> (define (fn n)
+  (fn-iter 0 1 n)
+  )
+;Value: fn
+
+1 ]=> (define (fn-iter product count n)
+  (if (= count n)
+      (product)
+      (fn-iter (+ product
+		  (fn-iter product (- count 1) n)
+		  (* 2
+		     (fn-iter product (- count 2) n))
+		  (* 3
+		     (fn-iter product (- count 3) n)))
+	       (+ count 1)
+	       n
+	       )
+      )
+  )
+;Value: fn-iter
+
+1 ]=> (fn 2)
+;Aborting!: maximum recursion depth exceeded
+
+1 ]=> (fn 4)
+;Aborting!: maximum recursion depth exceeded
+
+1 ]=> (define (p r e)
+  (if(AND (= r 0) (= e 0))
+     1
+     (/ (fac r)
+	 (* (fac e)
+	    (fac (- r
+		    e)
+		 )
+	    )
+	 )
+      )
+  )
+;Value: p
+
+1 ]=> (define (fac x)
+  (if (= x 1)
+      1
+      (* x
+	 (fac (- x
+		 1)
+	      )
+	 )
+      )
+  )
+;Value: fac
+
+1 ]=> (p 0 0)
+;Value: 1
+
+1 ]=> (p 4 2)
+;Value: 6
+
+1 ]=> (p 2 1)
+;Value: 2
+
+1 ]=> 
+End of input stream reached.
+Moriturus te saluto.

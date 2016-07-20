@@ -1,0 +1,95 @@
+Part 1:
+
+delayed:
+
+My delayed appears to work; however, I did not have a chance to properly 
+implement the stream operations. While I believe streams are, in fact, working, 
+because a thunk object is created that contains the environment of its origin, 
+when I tried to inspect a simple stream to see if my equivalent of a PROMISE was
+being created, the printout of the environment (included in the thunk) created 
+a seg fault. This makes me believe that it is technically working correctly, 
+though, as no error is being generated, rather the correct object simply is not
+capable of printing out.
+
+The core of my delayed implementation is in the list-of-values procedure. I 
+modified list-of-values to take in the list of parameters along with the list of
+arguments. When an argument is read in, the parallel parameter is checked for 
+the delayed tag (and also the dynamic and reference tags). If the delayed tag 
+is found, rather than run xeval on the argument expression, it is placed inside
+a thunk--a list tagged as a thunk and containing, in order, the environment 
+it's created in and the argument expression passed.
+
+This is then sent through xapply, wherein if a primitive-procedure is being 
+applied, its arguments are all run through xeval before the procedure is applied
+to them. At this point, all arguments are either self-evaluating or are 
+thunk-objects that need to be evaluated. To do this evaluation, a thunk special
+form is added to the eval-table which retrieves its evaluating environment 
+from within the expression itself.
+
+dynamic:
+
+The implementation for dynamic required implementation of a new environment 
+stack, the-dynamic-environment, a push frame, and a pop. The dynamic environment
+initializes to the-global-environment. Push places a frame ontop of the 
+environment. Pop sets the dynamic environment to its own cdr. When an 
+environment is extended, that frame is also pushes onto 
+the-dynamic-environment. Once xapply completes an application, the pop is 
+called before outputting the result.
+
+To evaluate the expression inside its respective environment, list of values 
+checks for the delayed tag in the paralell parameters list, similarly to what is
+done for delayed. If dynamic is spotted, its respective argument is sent to 
+xeval with the-dynamic-environment instead of the environment passed to 
+list-of-values.
+
+reference:
+
+
+I followed the homework's guidance and modeled this closely on delayed. As such,
+the real core happens inside of list-of-values. If an argument is tagged in 
+params as reference, a referent (similar to a thunk) is created. The difference
+is that the environment passed to the referent is the environment in which the
+passed variable is found.
+
+To find the variable's environment, I created a modified lookup-variable-value--
+lookup-variable-environment. This procedure returns the environment in which the
+variable is found rather than the value of the variable. Now, another special 
+form for referent is needed. It operates exactly as thunk. In fact, the 
+referent and thunk could be consolidated into the same object type, as the sole
+difference is really only the environment stored. The special forms for thunk 
+and referent work identically in terms of parsing expressions and environment 
+from the list itself.
+
+Part 2:
+
+I initially ran into confusion with regards to call/cc, thinking that we were
+expected to create our own call/cc procedure rather than apply the one native to
+scheme. Once I realized that, it was a pretty smooth process.
+
+The continue label is at the start of the s450 loop. Whenever an error450 is
+called, it works indentically to the error in prelude, except that instead of
+break, it runs call/cc to target. I had wanted to create a local definition of
+error in the s450 loop itself so that I would not have to manually replace the
+error calls, but unfortunately this would not work for some reason. To be clear,
+my original plan was to place
+
+(define error450 (lambda (. args)
+		(newline)
+		(display "Error: ")
+		(apply display* args)
+		(newline)
+		(call/cc target)))
+
+inside (define (s450).....). It is not really clear to me why this does not
+work.
+
+Exit was easier for me to implement than error handling actually. I created an
+exit-prompt object for the continuation of the loop. To utilize this object, I
+created a special form for exit, wherein it simply produces 'exit. After s450
+prints its output, it also loads that output value into exit-prompt. At this
+point, if exit-prompt is equal to 'exit, an exit statement is displayed before
+returning to the native environment; otherwise, s450 is called again.
+
+<EOF> will evaluate to object-eof? in xeval, wherein it outputs 'exit and so the
+exit path is taken in the s450 loop. On the other hand, a special form that
+handles (exit) will also output 'exit upon being called.

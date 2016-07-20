@@ -1,0 +1,146 @@
+2_ N.B. Test results are attached at the end of this question.
+
+Some preparation had to be done before modifications to eceval could be made.
+Aside from adding various expressions to the relevant lists, I also editted the
+cond-actions to pull out the cadr rather than the cdr of the clause.
+Furthermore, I also decided to simply use a clean version of regsim rather than
+worry about previous implementations interfering with anything.
+
+Once that was done, my approach to the condition consisted of arranging two
+overlapping loops to cooperate. The core loop of ev-cond is the ev-cond-decide
+loop, while inside it I also make calls to the eval-dispatch to evaluate the
+internal expressions of the cond.
+
+Before the loop begins, though, the continue register's value is pushed onto the
+stack and the clauses of the cond are extracted and stored in the unev register.
+
+At the top of the ev-cond-decide loop, first I check for the empty list, at
+which point we just escape back to the original entry after loading val with
+false. Otherwise, I retrieve the predicate component of the top expression and
+check if it is the "else" case. If it is, I escape directly to the
+ev-cond-consequent, where cond-actions is used to extract the consequent portion
+of the cond expression and load it into the exp register before restoring
+continue and proceeding on to the rest of the procedure.
+
+Outside of the two above cases, the ev-condition-predicate portion has to be
+called to evaluate the predicate portion of the cond expression. Before entering
+the label, I actually push the exp, env, and unev all to the stack before
+loading the continue register with the predicate label and sending to dispatch.
+Once dispatch returns, all the registers have to be restored. If the val
+register holds true, we are assured the the predicate portion evaluated to true
+and so we can continue on to evaluate the consequent as expected, again making
+sure to restore continue before going to the dispatch for what's been loaded in
+exp. If true is not loaded in val, however, rather than branching, unev will be
+cdr-ed down using the cond-clause (same procedure that extracted the series of
+cond expressions at the very beginning actually) and the top of the
+ev-cond-decide loop is gone to.
+
+Aside from not realizing I needed to slightly modify the one item in the syntax,
+the big hold up that I encountered in completing this was unev register. I had
+not realized that the dispatch did not preserve unev and so I 
+
+(define (cond-a x)
+        (cond 
+                ((= x 0) 'zero)
+                ((= x 1) 'one)
+                ((> x 1) 'good-bit)
+                (else 'negative)))
+
+(total-pushes = 3 maximum-depth = 3)
+
+;;; EC-Eval value:
+ok
+
+;;; EC-Eval input:
+(cond-a 1)
+
+(total-pushes = 30 maximum-depth = 12)
+
+;;; EC-Eval value:
+one
+
+;;; EC-Eval input:
+(cond-a 3)
+GCing... 5821000 bytes collected, 578984 bytes used, heapsize 6400000 bytes.
+
+(total-pushes = 41 maximum-depth = 12)
+
+;;; EC-Eval value:
+good-bit
+
+;;; EC-Eval input:
+(cond-a 2)
+
+(total-pushes = 41 maximum-depth = 12)
+
+;;; EC-Eval value:
+good-bit
+
+;;; EC-Eval input:
+(cond-a 0)
+GCing... 5820880 bytes collected, 579072 bytes used, heapsize 6400000 bytes.
+
+(total-pushes = 19 maximum-depth = 12)
+
+;;; EC-Eval value:
+zero
+
+;;; EC-Eval input:
+(cond-a -1)
+
+(total-pushes = 41 maximum-depth = 12)
+
+;;; EC-Eval value:
+negative
+
+3_
+a) The maximum depth is required to find n is 10; however, the number of pushes
+to solve n! is definitely a factor of n. (e.g., 3 -> 134, 5 -> 204, 2 -> 99, 25
+-> 904)
+
+b)
+        0: 29
+        1: 64
+        2: 99
+        3: 134
+        4: 169
+        5: 204
+        6: 239
+        7: 274
+   # pushes = 35n + 29
+   
+4_      n: pushes        depth
+        1: 16                8
+        2: 48                13
+        3: 80                18
+        4: 112               23
+        5: 144               28
+    # pushes = 32n - 16 | n > 0
+    depth = 5n + 3 | n > 0
+    
+                pushes          depth
+    fact-i      35n+29          10
+    fact-r      32n-16          5n+3
+    
+5_ 
+        fact-i
+        1       70      17
+        2       107     20
+        3       144     23
+        4       181     26
+        5       218     29
+        
+        fact-r
+        1       18      11
+        2       52      19
+        3       86      27
+        4       120     35
+        5       154     43
+        
+        p-i = 37n + 33
+        d-i = 3n + 14
+        
+        p-r = 34n - 16
+        d-r = 8n + 3
+        
+        Both iterative and recursive procedures now scale linearly on n.

@@ -1,0 +1,91 @@
+5.19_
+
+For my implementation, I approached the problem with the input command in mind.
+Since the user sets a break-point a certain distance away from a label, I chose
+to check for breaks based on that particular rationale.
+
+I implemented a couple new registers, including a new type of register that is
+really a table dedicated to breakpoints. The new registers, that are used, are:
+- inst-depth
+- current-label
+- break-table
+
+There are also some vestigial registers that I had intended to use but ended up
+not actually needing:
+- resume-flag
+- break-limit
+
+Resume flag might still be useful, however, to see if a machine is currently
+paused or not.
+
+inst-depth serves the sole purpose of tracking how far from the last label the
+machine is. It is reset to 0 every time the machine successfully branches or
+runs a goto instruction.
+
+Similarly, current-label tracks the current label the machine is running under.
+It does this by first being set to whatever the last label parsed by
+extract-labels was. This is guaranteed (at least from my observation) to be the
+first label, due to the nature of extract-labels--I'm not sure why, unfortunately
+the textbook does a really garbage job at documenting the how of this procedure,
+though I am adequately impressed at the authors' cleverness. When that last
+label is extracted, I load it into variable as well (since I had a hard time
+figuring out the scoping with this). In (execute), if current-label register is
+still unassigned, I load it with the value from the global holder, and then
+clear that holder out (this is similar to how I dealt with 5.9).
+
+Every time (execute) is called, it increments the inst-depth register first. It
+then checks the break-table register (which I modeled off the standard register)
+for the argument containing the current-label and inst-depth register passed as
+a pair. If it finds a hit, the program exits to terminal, rather than continuing
+with the execute procedure.
+
+My break-table register is basically a procedure containing a list and a
+dispatch--similar to registers. It has a few more dispatches than the normal
+registers, though. It can:
+- clear to empty
+- remove a single entry
+- output all entries
+- receive a new entry
+
+All breakpoints are stored as label-number pairs. They are passed into the
+break-table in a fashion very similar to a registers set-register-contents, but
+there is no need for the register lookup step, as there is always only a single
+break-table.
+
+When (execute) is called on an expression, the head (or, the cadaar really) is
+checked if it is a pair. If it is, it is checked if it is a goto or a branch.
+If it is a goto, the register is automatically updated, and the inst-depth is
+reset to 0 before proceeding on as normal. If it is a branch, the flag register
+is checked and, if flipped, the same process mentioned occurs--otherwise no
+change occurs, as there is no new label.
+
+Resume works by basically running (execute) in its original form. As the machine
+has already incremented the appropriate register and the label should still be
+the same, there is no reason to do anything except execute. The break-table
+can't be checked first or the machine would pause again. While the machine is
+paused, all normal register and break-table checks are available--breaks can be
+removed or added as well at this time. One issue that threw me off in testing
+this is that the machine doesn't actually reset its registers when it is done
+with its calculation--which makes sense as the result is only available by
+retrieving it from the registers. This did result in a bit of meandering down a
+rabbit hole, trying to figure out why my breaks would stop kicking in after the
+machine had been "run once".
+
+My implementation has a few drawbacks. While it is straight-forward and
+intuitive, it does not allow for the extra item on the homework that demands the
+ability to cancel a break with any correct label-offset combination. I had
+already started implementing under solely the textbook's guidance when I noticed
+the note at the end of the assignment sheet tossing in this arbitrary new
+requirement. A different mechanism entirely from the way my implementation works
+would be needed to do this.
+
+5.9_
+This one was pretty straight forward, scoping issues aside. Basically, I load a
+dummy variable in the global environment with every symbol spotted in
+extract-labels. Before adding it into the global list, I check if it's already
+there--if it is, I return an error with a message about ambiguous labels, 
+otherwise extract-labels recurses, currying onto itself or whatever nonsense it
+is doing, as it would. This does require me to place a couple creative clear
+statements in make-machine and at the machine's completion, as well as when the
+error is returned. Without these list-clears, labels would turn up as duplicates
+when two different machines used the same label.

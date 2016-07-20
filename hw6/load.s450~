@@ -1,0 +1,23 @@
+;;;  load.s450
+;;;
+;;;  install special form (load "filename") in s450 evaluator
+;;;
+
+(define eval-load
+  (lambda (exp env)
+    (define (filename exp) (cadr exp))
+    (define thunk (lambda ()
+		    (readfile)
+		    ))
+    (define readfile (lambda()
+		       (let ((item (read)))
+			 (if (not (eof-object? item))
+			     (begin
+			       (xeval item env)
+			       (readfile))))
+		       ))
+    (with-input-from-file (filename exp) thunk)
+    (filename exp)      ; return the name of the file - why not?
+    ))
+
+

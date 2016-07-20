@@ -1,0 +1,165 @@
+;;; file: pi_header.scm
+;;;
+;;; This should be included (textually) at the top of pi.scm.  All
+;;; these definitions are from the textbook.
+
+;;; cons-stream is already defined (by a macro, as a special form) in
+;;; UMB Scheme
+
+(define stream-car car)
+(define (stream-cdr stream) (force (cdr stream)))
+(define stream-null? null?)
+(define the-empty-stream '())
+
+(define (add-streams s1 s2)
+  (stream-map + s1 s2))
+
+(define (stream-foreach f x)
+  (if (stream-null? x)
+      'done
+      (begin (f (stream-car x))
+             (stream-foreach f (stream-cdr x)))))
+
+(define (stream-filter pred stream)
+  (cond ((stream-null? stream) the-empty-stream)
+        ((pred (stream-car stream))
+         (cons-stream (stream-car stream)
+                      (stream-filter pred (stream-cdr stream))))
+        (else (stream-filter pred (stream-cdr stream)))))
+
+;;1_display the next n-elements in a stream
+(define (display-n stream n)
+  (if (equal? n 0)
+      '()
+      (begin
+	(display (stream-car stream))
+	(newline)
+	(display-n (stream-cdr stream) (- n 1))))
+  )
+
+;;2_
+
+(define (stream-map proc . argstreams)
+  (if (stream-null? (car argstreams))
+      the-empty-stream
+      (cons-stream
+       (apply proc (map stream-car argstreams))
+       (apply stream-map
+	      (cons proc (map stream-cdr argstreams)))))
+  )
+
+;;3_
+(define ones (cons-stream 1 ones))
+
+(define integers (cons-stream 1 (add-streams ones integers)))
+
+(define notdiv-235
+  (let ((nd235 (lambda (x) (and (< 0 (remainder x 2)) (< 0 (remainder x 3)) (< 0 (remainder x 5))))))
+    (stream-filter nd235 integers))
+  )
+
+;;4_
+;;;converts a char representation of an integer to its actual int value--i.e., bypasses ASCI
+(define char->int (lambda (x) (- (char->integer x) 48)))
+
+;;;converts a number to a list of integers
+(define (number->list-of-digits x)
+  (map char->int (string->list (number->string x)))
+  )
+
+(define (get-pow a-list)
+  (* 10 (length a-list)))
+
+
+(define (mult-stream m strm)
+  (let ((produce?
+	 (lambda (a-list a m pow)
+	   (and (> (length a-list) 0) (> pow (+ m (remainder a pow)))))))
+    (define mult-stream' (lambda (m strm a-list a pow)
+			   (cond ((null? strm) a-list)
+				 ((produce? a-list a m pow)
+				  (cons-stream (car a-list)
+					       (mult-stream' m strm
+							     (cdr a-list)
+							     (remainder a pow)
+							     (get-pow (cdr a-list)))))
+				 (else
+				  (let* ((new-a (+ (* 10 a) (* m (stream-car strm))))
+					(new-a-list (if (< (length (number->list-of-digits a))
+							   (length (number->list-of-digits new-a)))
+							(number->list-of-digits new-a)
+							(cons 0 (number->list-of-digits new-a)))))
+				    (mult-stream' m
+						  (stream-cdr strm)
+						  new-a-list new-a
+						  (get-pow new-a-list)))))))
+    (mult-stream' m strm '() 0 0))
+  )
+
+(display (mult-stream 87 '(9 8 7 4 3 6 9 1 7)))
+
+;;5_
+
+;;;2x2 matrix multiplier
+(define compose
+  (lambda (matrix1 matrix2)
+    (let ((a11 (car matrix1)) (a12 (cadr matrix1))
+	  (a21 (caddr matrix1)) (a22 (cadddr matrix1))
+	  (b11 (car matrix2)) (b12 (cadr matrix2))
+	  (b21 (caddr matrix2)) (b22 (cadddr matrix2)))
+      (list (+ (* a11 b11) (* a12 b21)) (+ (* a11 b12) (* a12 b22))
+	    (+ (* a21 b11) (* a22 b21)) (+ (* a21 b12) (* a22 b22)))))
+  )
+
+;;;matrix entry selector
+(define grab-m
+  (lambda (r c matrix)
+    (cond
+     ((equal? 1 r) (cond
+		    ((equal? c 1) (car matrix))
+		    ((equal? c 2) (cadr matrix))
+		    (else error "Bad argument!")))
+      ((equal? 2 r) (cond
+		     ((equal? c 1) (caddr matrix))
+		     ((equal? c 2) (cadddr matrix))
+		     (else error "Bad argument!")))
+      (else error "Bad argument!")))
+  )
+
+;;;2x2 matrix adder
+(define add-m
+  (lambda (matrix1 matrix2)
+    (list (+ (car matrix1) (car matrix2)) (+ (cadr matrix1) (cadr matrix2))
+	  (+ (caddr matrix1) (caddr matrix2)) (+ (cadddr matrix1) (cadddr matrix2))))
+  )
+
+;;;procedure for adding matrix streams
+(define (add-m-streams s1 s2)
+  (stream-map add-m s1 s2))
+
+;;;core of the stream we will use as strm in pi
+(define lft (cons-stream '(1 4 0 2) lft))
+
+;;;strm for pi
+(define pi-strm (cons-stream '(1 6 0 3) (add-m-streams lft pi-strm)))
+
+(define lft-top (lambda (a val) (+ (* (grab-m 1 1 a) val) (grab-m 1 2 a))))
+(define lft-bot (lambda (a val) (+ (* (grab-m 2 1 a) val) (grab-m 2 2 a))))
+
+(define offset-m (lambda (val) (list 10 (* -10 val) 0 1)))
+
+(define (pi-stream' a strm)
+  (if (equal? (quotient (lft-top a 3) (lft-bot a 3))
+	      (quotient (lft-top a 4) (lft-bot a 4)))
+      (cons-stream (quotient (lft-top a 3) (lft-bot a 3))
+		   (pi-stream'
+		    (compose (offset-m (quotient (lft-top a 3) (lft-bot a 3)))
+			     a)
+		    strm))
+      (pi-stream' (compose a (stream-car strm)) (stream-cdr strm))))
+
+(define pi (pi-stream' '(2 40 0 15) (stream-cdr (stream-cdr pi-strm))))
+
+(newline)
+ 
+(display-n pi 10)
